@@ -6,12 +6,12 @@ require 'tmpdir'
 
 # maven command lines
 $Mvn_deploy_snapshot = 'mvn -e deploy:deploy-file'
-$Mvn_deploy_release  = 'mvn -e gpg:sign-and-deploy-file'
+$Mvn_deploy_release  = 'mvn -e deploy:deploy-file'
 
 # maven coordinates
-$Group = 'com.github.dcarter.gdata-java-client'
+$Group = 'com.google.gdata.gdata-java-client'
 $Release_repo = 'sonatype-nexus-staging' 
-$Release_repo_url = 'http://oss.sonatype.org/service/local/staging/deploy/maven2'
+$Release_repo_url = 'file:///var/www/hosts/maven.burtsev.net/www'
 $Snapshot_repo = 'sonatype-nexus-snapshots' 
 $Snapshot_repo_url = 'http://oss.sonatype.org/content/repositories/snapshots'
 
@@ -66,7 +66,7 @@ def find_dependencies(version, jarpath, dest=Dir.tmpdir)
   # tattletale results are cached; if you want to rebuild, you must delete prev files
   if !File.exists?(dotfile) then      
     puts "Running tattletale. . ."
-    `java -Xmx512m -jar #{$Tattletale}  #{jarpath} #{outdir}`
+    `java -Xmx256m -jar #{$Tattletale}  #{jarpath} #{outdir}`
   end
 
   # parse dependencies .dot file & output pom.xml files for each jar
@@ -114,7 +114,7 @@ def generate_poms(version, dependencies, jarpath, dest=Dir.tmpdir, snapshot=FALS
   
   puts "Generating poms to #{outdir}"
   
-  script_file_name = File.join(outdir,"mvn_deploy_gdata_#{version}")
+  script_file_name = File.join(outdir,"mvn_deploy_gdata")
   script_file = File.new(script_file_name, "w")
   
   script_file.puts "#!/bin/bash\n\n"

@@ -53,7 +53,7 @@ def get_gdata_jars(version, dest=Dir.tmpdir)
     FileUtils.rm(destfile)
     FileUtils.cp_r(deps,libs)
   end
-  
+  puts "Libs: #{libs}"
   return libs
 end
 
@@ -197,17 +197,23 @@ FileUtils.mkdir(outdir) unless File.exists?(outdir) && File.directory?(outdir)
 $Tattletale = get_tattletale(tempdir)
 
 ['1.40.0', '1.40.1', '1.40.2', '1.40.3', '1.41.0', '1.41.1', '1.41.2', '1.42.0', '1.43.0', '1.44.0', '1.45.0', '1.46.0', '1.47.0', '1.47.1' ].each { |version|
-  
+
   jarpath = get_gdata_jars(version, tempdir)
 
   deps = find_dependencies(version, jarpath, tempdir)
+  deps_with_meta = Hash.new()
+  deps.each { |artifact, dep|
+    meta = artifact.sub( %r{(\w*)-(\d.\d)}, '\1-meta-\2' )
+    deps_with_meta[meta] = [artifact]
+    deps_with_meta[artifact] = dep
+  }
 
   # generate snapshot poms  
-  snaps_location = generate_poms(version, deps, jarpath, outdir, TRUE)
-    
+  snaps_location = generate_poms(version, deps_with_meta, jarpath, outdir, TRUE)
+
   # generate release poms
-  rel_location   = generate_poms(version, deps, jarpath, outdir, FALSE)
-  
+  rel_location   = generate_poms(version, deps_with_meta, jarpath, outdir, FALSE)
+
   puts "Snapshot poms & deployment script created in #{snaps_location}\n\n"
   puts " Release poms & deployment script created in #{rel_location}\n\n"
 }

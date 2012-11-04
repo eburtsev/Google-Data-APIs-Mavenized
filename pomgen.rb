@@ -165,9 +165,15 @@ def generate_poms(version, dependencies, jarpath, dest=Dir.tmpdir, snapshot=FALS
           dep_artifact = 'google-collections'
           dep_version = $1
         else
-          dep_group = $Group
-          dep_artifact = dep
-          dep_version = pom_version
+          if dep =~ /guava-(\S+)/   then    # e.g. - google-collect-1.0-rc1
+            dep_group = 'com.google.guava'
+            dep_artifact = 'guava'
+            dep_version = $1.sub( %r{-}, ".")
+          else
+            dep_group = $Group
+            dep_artifact = dep
+            dep_version = pom_version
+          end
         end
         pom_file.puts "    <dependency>"
         pom_file.puts "      <groupId>#{dep_group}</groupId>"

@@ -11,7 +11,7 @@ $Mvn_deploy_release  = 'mvn -e deploy:deploy-file'
 # maven coordinates
 $Group = 'com.google.gdata.gdata-java-client'
 $Release_repo = 'sonatype-nexus-staging' 
-$Release_repo_url = 'file:///var/www/hosts/maven.burtsev.net/www'
+$Release_repo_url = 'file:///tmp/maven/'
 $Snapshot_repo = 'sonatype-nexus-snapshots' 
 $Snapshot_repo_url = 'http://oss.sonatype.org/content/repositories/snapshots'
 
@@ -44,17 +44,23 @@ def get_gdata_jars(version, dest=Dir.tmpdir)
   uri = "http://gdata-java-client.googlecode.com/files/#{archive}" 
   libs = File.join(destdir,"gdata","java","lib")
   deps = File.join(destdir,"gdata","java","deps",".")
+  srcs = File.join(destdir,"gdata","java","src")
+  srcjar = File.join(destdir,"gdata","java","gdata-#{version}-sources.jar")
+  docs = File.join(destdir,"gdata","java","doc")
+  docjar = File.join(destdir,"gdata","java","gdata-#{version}-javadoc.jar")
 
   # gdata jars are cached; if you want to re-download a given version, you must delete prev files
   if !(File.exists?(libs) && File.directory?(libs)) then  
     puts "Downloading #{archive}"  
     `wget -nc #{uri} -O #{destfile}`
     `unzip #{destfile} -d #{destdir}`
+    puts "Generating sources & javadoc packages"
+    `cd #{srcs}; jar -cf #{srcjar} . ; cd #{docs}; jar -cf #{docjar} .`
     FileUtils.rm(destfile)
     FileUtils.cp_r(deps,libs)
   end
-  puts "Libs: #{libs}"
-  return libs
+
+  return libs, srcjar, docjar
 end
 
 def find_dependencies(version, jarpath, dest=Dir.tmpdir)
@@ -103,7 +109,7 @@ def find_dependencies(version, jarpath, dest=Dir.tmpdir)
   return depends_hash
 end 
 
-def generate_poms(version, dependencies, jarpath, dest=Dir.tmpdir, snapshot=FALSE)
+def generate_poms(version, dependencies, jarpath, srcpath, docpath, dest=Dir.tmpdir, snapshot=FALSE)
 
   outdir = File.join(dest, snapshot ? "snapshot" : "release", "v#{version}")
   
@@ -122,6 +128,8 @@ def generate_poms(version, dependencies, jarpath, dest=Dir.tmpdir, snapshot=FALS
   script_file.puts "JARS='#{File.join(jarpath,'/')}'"
   script_file.puts "POMS='#{File.join('.','/')}'"
   script_file.puts "REPO='#{snapshot ? $Snapshot_repo : $Release_repo}'"
+  script_file.puts "SRCPATH='#{srcpath}'"
+  script_file.puts "DOCPATH='#{docpath}'"
   script_file.puts "URL='#{snapshot ? $Snapshot_repo_url : $Release_repo_url}'\n\n"
 
   dependencies.keys.sort.each { |key|  
@@ -186,6 +194,10 @@ def generate_poms(version, dependencies, jarpath, dest=Dir.tmpdir, snapshot=FALS
     pom_file.puts "</project>"
     pom_file.close;
     script_file.puts "${MVN} -Dfile=${JARS}#{key}.jar -DpomFile=${POMS}#{pom_file_name} -DrepositoryId=${REPO} -Durl=${URL}"
+    if not key =~ /meta-/
+      script_file.puts "${MVN} -Dfile=${SRCPATH} -DpomFile=${POMS}#{pom_file_name} -Dpackaging=java-source -DrepositoryId=${REPO} -Durl=${URL}"
+      script_file.puts "${MVN} -Dfile=${DOCPATH} -DpomFile=${POMS}#{pom_file_name} -Dpackaging=javadoc -DrepositoryId=${REPO} -Durl=${URL}"
+    end
   }
   script_file.close
   FileUtils.chmod(0744,script_file_name)
@@ -202,10 +214,10 @@ FileUtils.mkdir(outdir) unless File.exists?(outdir) && File.directory?(outdir)
 
 $Tattletale = get_tattletale(tempdir)
 
-['1.40.0', '1.40.1', '1.40.2', '1.40.3', '1.41.0', '1.41.1', '1.41.2', '1.42.0', '1.43.0', '1.44.0', '1.45.0', '1.46.0', '1.47.0', '1.47.1' ].each { |version|
+['1.40.0', '1.40.1', '1.40.2', '1.40.3', '1.41.0', '1.41.1', '1.41.2', '1.42.0', '1.43.0', '1.44.0', '1.45.0', '1.46.0', '1.47.0', '1.47.1'].each { |version|
 
-  jarpath = get_gdata_jars(version, tempdir)
-
+  jarpath, srcpath, docpath = get_gdata_jars(version, tempdir)
+  puts "!!!! #{srcpath} - #{docpath}"
   deps = find_dependencies(version, jarpath, tempdir)
   deps_with_meta = Hash.new()
   deps.each { |artifact, dep|
@@ -215,10 +227,10 @@ $Tattletale = get_tattletale(tempdir)
   }
 
   # generate snapshot poms  
-  snaps_location = generate_poms(version, deps_with_meta, jarpath, outdir, TRUE)
+  snaps_location = generate_poms(version, deps_with_meta, jarpath, srcpath, docpath, outdir, TRUE)
 
   # generate release poms
-  rel_location   = generate_poms(version, deps_with_meta, jarpath, outdir, FALSE)
+  rel_location   = generate_poms(version, deps_with_meta, jarpath, srcpath, docpath, outdir, FALSE)
 
   puts "Snapshot poms & deployment script created in #{snaps_location}\n\n"
   puts " Release poms & deployment script created in #{rel_location}\n\n"
